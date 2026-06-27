@@ -1,0 +1,88 @@
+name: VWAP RSI Scanner
+
+on:
+  schedule:
+    # GitHub Actions minimum is every 5 minutes via cron.
+    # We chain two jobs offset by ~2 minutes using a sleep trick.
+    # Cron runs at :00 and :05 past each hour; the second job sleeps 2 min.
+    - cron: '*/5 13-22 * * 1-5'   # UTC 13-22 = EST 9AM-6PM (covers DST too)
+  workflow_dispatch:               # allow manual trigger from GitHub UI
+
+jobs:
+  scan-pass-1:
+    name: Scan Pass 1
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scanner
+        env:
+          EMAIL_SENDER:   ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
+          SMTP_HOST:      ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:      ${{ secrets.SMTP_PORT }}
+          EXTRA_TICKERS:  ${{ secrets.EXTRA_TICKERS }}
+        run: python scanner.py
+
+      - name: Commit & push results
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/
+          git diff --cached --quiet || git commit -m "scanner: update signals $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push
+
+  scan-pass-2:
+    name: Scan Pass 2 (offset +2 min)
+    runs-on: ubuntu-latest
+    needs: scan-pass-1        # run after pass 1 finishes
+    permissions:
+      contents: write
+
+    steps:
+      - name: Wait 2 minutes
+        run: sleep 120
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scanner
+        env:
+          EMAIL_SENDER:   ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
+          SMTP_HOST:      ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:      ${{ secrets.SMTP_PORT }}
+          EXTRA_TICKERS:  ${{ secrets.EXTRA_TICKERS }}
+        run: python scanner.py
+
+      - name: Commit & push results
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/
+          git diff --cached --quiet || git commit -m "scanner: update signals $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push
