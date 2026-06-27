@@ -58,8 +58,8 @@ VOLUME_MULTIPLIER   = 1.2    # volume must be 1.2× the 20-bar average
 LOOKBACK_BARS       = 60     # how many 15-min bars to fetch (~1 trading day)
 DIVERGENCE_WINDOW   = 5      # bars to look back for divergence
 
-RESULTS_FILE  = "output/signals.json"
-HTML_FILE     = "output/index.html"
+RESULTS_FILE  = "docs/signals.json"
+HTML_FILE     = "docs/index.html"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -203,7 +203,7 @@ def load_existing() -> list[dict]:
 
 
 def save_results(results: list[dict]) -> None:
-    os.makedirs("output", exist_ok=True)
+    os.makedirs("docs", exist_ok=True)
     with open(RESULTS_FILE, "w") as f:
         json.dump(results, f, indent=2)
 
@@ -392,7 +392,7 @@ window.onload = filterTable;
 </body>
 </html>"""
 
-    os.makedirs("output", exist_ok=True)
+    os.makedirs("docs", exist_ok=True)
     with open(HTML_FILE, "w") as f:
         f.write(html)
     log.info(f"HTML saved → {HTML_FILE}")
