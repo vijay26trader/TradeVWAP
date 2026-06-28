@@ -1,122 +1,94 @@
-# 📊 VWAP + RSI Signal Scanner
+# 📊 TradeVWAP — Flask + SQLite Signal Scanner
 
-An automated intraday stock signal scanner that runs every **~2 minutes** between **9 AM – 6 PM EST** on weekdays via GitHub Actions.
+A live intraday signal scanner with a Flask dashboard hosted on Render.
+**No redeploy on data updates** — Flask reads SQLite on every page request.
 
-## What It Checks
+## Architecture
 
-| Condition | Threshold |
-|---|---|
-| VWAP Deviation | ≥ 2% from session VWAP |
-| RSI (14-period) | ≤ 35 (oversold) or ≥ 65 (overbought) |
-| RSI Divergence | Bullish (LONG) or Bearish (SHORT) |
-| Volume | ≥ 1.2× the 20-bar average |
+```
+GitHub Actions (every ~2 min, 9AM-6PM EST)
+        ↓
+  scanner.py runs
+        ↓
+  writes signals.db
+        ↓
+  SCP pushes db → Render persistent disk
+        ↓
+Flask app reads db on every request → Live dashboard ✅
+```
 
-A **LONG** signal requires: price stretched below VWAP + RSI oversold + Bullish divergence  
-A **SHORT** signal requires: price stretched above VWAP + RSI overbought + Bearish divergence
+## Deployment — Step by Step
 
-## Signal Columns
-
-| Column | Description |
-|---|---|
-| Timestamp | Time the signal was detected (EST) |
-| Symbol | Stock ticker |
-| Price | Current price at scan time |
-| VWAP | Session VWAP value |
-| % from VWAP | Price deviation from VWAP |
-| RSI (14) | RSI reading |
-| RSI Divergence | Bullish / Bearish / None |
-| Volume | Volume on that 15-min bar |
-| Vol Ratio | Volume ÷ 20-bar average |
-| Signal | LONG / SHORT |
-| Strength | ★ to ★★★ (confluence of conditions met) |
-| Stop Loss | 1 ATR beyond the signal bar |
-| Target (VWAP) | VWAP reversion target |
-| Status | New / Active / Expired |
-
-## Default Tickers
-
-SPY, AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA, JPM, V
-
-## Setup Instructions
-
-### 1. Fork / Clone this repo
-
+### 1. Push repo to GitHub
 ```bash
-git clone https://github.com/YOUR_USERNAME/vwap-scanner.git
-cd vwap-scanner
+git init && git add . && git commit -m "init TradeVWAP Flask app"
+git remote add origin https://github.com/YOUR_USERNAME/TradeVWAP.git
+git push -u origin main
 ```
 
-### 2. Add GitHub Secrets
+### 2. Deploy to Render
 
-Go to your repo → **Settings → Secrets and variables → Actions → New repository secret**
+1. Go to https://render.com and sign up (free)
+2. Click **"New +"** → **"Web Service"**
+3. Connect your GitHub repo **TradeVWAP**
+4. Render auto-detects `render.yaml` — click **"Apply"**
+5. Your app deploys at: `https://tradevwap.onrender.com`
 
-| Secret Name | Value |
+### 3. Get Render SSH credentials
+
+Render provides SSH access to your running service:
+
+1. Go to your service on Render → **"Shell"** tab
+2. Note the SSH host and user shown (e.g. `ssh user@tradevwap.onrender.com`)
+3. Generate an SSH key pair locally:
+   ```bash
+   ssh-keygen -t ed25519 -f render_key -N ""
+   ```
+4. Add `render_key.pub` contents to Render → **Settings → SSH Keys**
+
+### 4. Add GitHub Secrets
+
+Go to your GitHub repo → **Settings → Secrets → Actions**:
+
+| Secret | Value |
 |---|---|
-| `EMAIL_SENDER` | Your Gmail address (e.g. `you@gmail.com`) |
-| `EMAIL_PASSWORD` | Gmail App Password (NOT your regular password) |
-| `EMAIL_RECEIVER` | Where to receive alerts |
-| `SMTP_HOST` | `smtp.gmail.com` (default) |
-| `SMTP_PORT` | `587` (default) |
-| `EXTRA_TICKERS` | Optional: comma-separated extra tickers e.g. `NFLX,AMD,PLTR` |
+| `EMAIL_SENDER` | your Gmail |
+| `EMAIL_PASSWORD` | Gmail App Password |
+| `EMAIL_RECEIVER` | alert destination email |
+| `RENDER_SSH_KEY` | contents of `render_key` (private key) |
+| `RENDER_SSH_HOST` | e.g. `tradevwap.onrender.com` |
+| `RENDER_SSH_USER` | SSH user from Render shell tab |
 
-> **Gmail App Password**: Go to myaccount.google.com → Security → 2-Step Verification → App Passwords → generate one for "Mail".
+### 5. Enable GitHub Actions
 
-### 3. Add Custom Tickers (optional)
+Go to **Actions tab** → enable workflows.
+Scanner runs every ~2 minutes Mon–Fri 9AM–6PM EST.
 
-Edit `data/custom_tickers.txt` and add tickers one per line:
+## API Endpoints
 
-```
-NFLX
-AMD
-PLTR
-```
+| Endpoint | Description |
+|---|---|
+| `/` | Live dashboard |
+| `/api/signals` | JSON signal data |
+| `/api/stats` | JSON stats summary |
+| `/health` | Health check |
 
-Or set the `EXTRA_TICKERS` GitHub Secret: `NFLX,AMD,PLTR`
+Query params for `/api/signals`: `symbol`, `signal`, `strength`, `days`
 
-### 4. Enable GitHub Actions
-
-- Go to your repo → **Actions** tab
-- Click **"I understand my workflows, go ahead and enable them"**
-- The scanner will automatically run every 5 minutes during market hours (two passes per cycle for ~2-min cadence)
-
-### 5. Enable GitHub Pages (for HTML dashboard)
-
-- Go to **Settings → Pages**
-- Source: **Deploy from a branch**
-- Branch: `main` / folder: `/output`
-- Your dashboard will be live at: `https://YOUR_USERNAME.github.io/vwap-scanner/`
-
-### 6. Run Locally (optional)
-
-```bash
-pip install -r requirements.txt
-
-# Set environment variables
-export EMAIL_SENDER="you@gmail.com"
-export EMAIL_PASSWORD="your-app-password"
-export EMAIL_RECEIVER="alerts@youremail.com"
-
-python scanner.py
-```
+Example: `/api/signals?signal=LONG&strength=3&days=7`
 
 ## Project Structure
 
 ```
-vwap-scanner/
-├── .github/
-│   └── workflows/
-│       └── scanner.yml       # GitHub Actions workflow
-├── data/
-│   └── custom_tickers.txt    # Add your custom tickers here
-├── output/
-│   ├── index.html            # Live HTML dashboard (auto-generated)
-│   └── signals.json          # Raw signal data (auto-generated)
-├── scanner.py                # Main scanner script
+TradeVWAP/
+├── .github/workflows/scanner.yml   # GitHub Actions
+├── templates/dashboard.html        # Flask HTML template
+├── app.py                          # Flask web server
+├── scanner.py                      # Signal scanner
 ├── requirements.txt
+├── render.yaml                     # Render config
 └── README.md
 ```
 
 ## Disclaimer
-
-This tool is for **educational and informational purposes only**.  
-It does **not** constitute financial advice. Always do your own research before trading.
+For informational purposes only. Not financial advice.

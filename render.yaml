@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: tradevwap
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: DB_PATH
+        value: docs/signals.db
+      - key: PYTHON_VERSION
+        value: 3.12.0
+    disk:
+      name: signals-db
+      mountPath: /opt/render/project/src/docs
+      sizeGB: 1

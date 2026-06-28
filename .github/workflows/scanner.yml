@@ -33,17 +33,23 @@ jobs:
           SMTP_HOST:      ${{ secrets.SMTP_HOST }}
           SMTP_PORT:      ${{ secrets.SMTP_PORT }}
           EXTRA_TICKERS:  ${{ secrets.EXTRA_TICKERS }}
+          DB_PATH:        docs/signals.db
         run: python scanner.py
 
-      - name: Commit & push results
+      - name: Push DB to Render disk via SCP
+        env:
+          RENDER_SSH_KEY:  ${{ secrets.RENDER_SSH_KEY }}
+          RENDER_SSH_HOST: ${{ secrets.RENDER_SSH_HOST }}
+          RENDER_SSH_USER: ${{ secrets.RENDER_SSH_USER }}
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git reset --soft origin/main
-          git add docs/
-          git diff --cached --quiet || git commit -m "scanner: update signals $(date -u '+%Y-%m-%d %H:%M UTC')"
-          git push
+          mkdir -p ~/.ssh
+          echo "$RENDER_SSH_KEY" > ~/.ssh/render_key
+          chmod 600 ~/.ssh/render_key
+          ssh-keyscan -H "$RENDER_SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          scp -i ~/.ssh/render_key -o StrictHostKeyChecking=no \
+            docs/signals.db \
+            "$RENDER_SSH_USER@$RENDER_SSH_HOST:/opt/render/project/src/docs/signals.db"
+          echo "DB pushed to Render ✅"
 
   scan-pass-2:
     name: Scan Pass 2 (offset +2 min)
@@ -76,14 +82,20 @@ jobs:
           SMTP_HOST:      ${{ secrets.SMTP_HOST }}
           SMTP_PORT:      ${{ secrets.SMTP_PORT }}
           EXTRA_TICKERS:  ${{ secrets.EXTRA_TICKERS }}
+          DB_PATH:        docs/signals.db
         run: python scanner.py
 
-      - name: Commit & push results
+      - name: Push DB to Render disk via SCP
+        env:
+          RENDER_SSH_KEY:  ${{ secrets.RENDER_SSH_KEY }}
+          RENDER_SSH_HOST: ${{ secrets.RENDER_SSH_HOST }}
+          RENDER_SSH_USER: ${{ secrets.RENDER_SSH_USER }}
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git reset --soft origin/main
-          git add docs/
-          git diff --cached --quiet || git commit -m "scanner: update signals $(date -u '+%Y-%m-%d %H:%M UTC')"
-          git push
+          mkdir -p ~/.ssh
+          echo "$RENDER_SSH_KEY" > ~/.ssh/render_key
+          chmod 600 ~/.ssh/render_key
+          ssh-keyscan -H "$RENDER_SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          scp -i ~/.ssh/render_key -o StrictHostKeyChecking=no \
+            docs/signals.db \
+            "$RENDER_SSH_USER@$RENDER_SSH_HOST:/opt/render/project/src/docs/signals.db"
+          echo "DB pushed to Render ✅"
