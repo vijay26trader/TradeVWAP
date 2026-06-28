@@ -2,11 +2,8 @@ name: VWAP RSI Scanner
 
 on:
   schedule:
-    # GitHub Actions minimum is every 5 minutes via cron.
-    # We chain two jobs offset by ~2 minutes using a sleep trick.
-    # Cron runs at :00 and :05 past each hour; the second job sleeps 2 min.
-    - cron: '*/5 13-22 * * 1-5'   # UTC 13-22 = EST 9AM-6PM (covers DST too)
-  workflow_dispatch:               # allow manual trigger from GitHub UI
+    - cron: '*/5 13-22 * * 1-5'   # UTC 13-22 = EST 9AM-6PM
+  workflow_dispatch:
 
 jobs:
   scan-pass-1:
@@ -42,7 +39,10 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          git stash
           git pull --rebase origin main
+          git stash pop
           git add docs/
           git diff --cached --quiet || git commit -m "scanner: update signals $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
@@ -50,7 +50,7 @@ jobs:
   scan-pass-2:
     name: Scan Pass 2 (offset +2 min)
     runs-on: ubuntu-latest
-    needs: scan-pass-1        # run after pass 1 finishes
+    needs: scan-pass-1
     permissions:
       contents: write
 
@@ -84,6 +84,10 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          git stash
+          git pull --rebase origin main
+          git stash pop
           git add docs/
           git diff --cached --quiet || git commit -m "scanner: update signals $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
